@@ -1,0 +1,34 @@
+{
+  "name": "pi-notification",
+  "version": "1.0.0",
+  "description": "Linux and Wayland desktop notification extension for Pi coding agent",
+  "main": "./src/index.ts",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "notification",
+    "wayland",
+    "linux",
+    "desktop-notification"
+  ],
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "files": [
+    "src",
+    "assets",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/*.test.ts"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "license": "MIT"
+}

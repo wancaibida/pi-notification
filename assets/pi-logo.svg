@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="50%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="badge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded squircle -->
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#bg)" filter="url(#shadow)"/>
+
+  <!-- Pi Symbol (π) -->
+  <g fill="#FFFFFF" transform="translate(24, 28) scale(1.1)">
+    <!-- Top Bar -->
+    <path d="M 6 12 C 6 8, 9 6, 14 6 L 62 6 C 66 6, 68 8, 67 12 C 66 16, 63 17, 59 17 L 14 17 C 9 17, 6 15, 6 12 Z"/>
+    <!-- Left Leg -->
+    <path d="M 23 15 L 23 52 C 23 57, 19 61, 14 60 C 10 59, 11 55, 14 53 C 16 52, 17 50, 17 46 L 17 15 Z"/>
+    <!-- Right Leg -->
+    <path d="M 47 15 L 47 48 C 47 54, 50 58, 56 58 C 61 58, 63 54, 64 51 C 65 48, 67 49, 66 53 C 64 58, 59 63, 52 63 C 42 63, 39 56, 39 48 L 39 15 Z"/>
+  </g>
+
+  <!-- Notification Check / Badge -->
+  <circle cx="98" cy="98" r="18" fill="url(#badge)" stroke="#FFFFFF" stroke-width="3"/>
+  <path d="M 91 98 L 96 103 L 106 93" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
