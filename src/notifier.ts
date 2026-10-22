@@ -11,13 +11,7 @@ const DEFAULT_ICON_PATH = path.resolve(__dirname, "..", "assets", "pi-logo.svg")
 
 export function resolveIcon(customIcon?: string): string {
 	if (customIcon && customIcon.trim().length > 0) {
-		const trimmed = customIcon.trim();
-		// If it's a file path that exists, use it
-		if (fs.existsSync(trimmed)) {
-			return trimmed;
-		}
-		// Otherwise it might be a stock icon name like "dialog-information"
-		return trimmed;
+		return customIcon.trim();
 	}
 
 	if (fs.existsSync(DEFAULT_ICON_PATH)) {
@@ -33,18 +27,19 @@ export function resolveIcon(customIcon?: string): string {
  */
 export function sendTerminalNotification(title: string, body: string): void {
 	try {
-		const cleanTitle = title.replace(/[\r\n\x00-\x1f]/g, " ");
-		const cleanBody = body.replace(/[\r\n\x00-\x1f]/g, " ");
+		const cleanTitle = title.replace(/[\r\n\x00-\x1f\x7f]/g, " ").replace(/;/g, " - ").trim();
+		const cleanBody = body.replace(/[\r\n\x00-\x1f\x7f]/g, " ").replace(/;/g, " - ").trim();
 
 		if (process.env.KITTY_WINDOW_ID) {
-			// Kitty OSC 99
+			// Kitty OSC 99 (multi-part with d=1 completion)
 			process.stdout.write(`\x1b]99;i=1:d=0;${cleanTitle}\x1b\\`);
-			process.stdout.write(`\x1b]99;i=1:p=body;${cleanBody}\x1b\\`);
-		} else {
-			// OSC 777 (Ghostty, WezTerm, rxvt, foot)
-			process.stdout.write(`\x1b]777;notify;${cleanTitle};${cleanBody}\x07`);
-			// OSC 9 (fallback for other modern terminals)
+			process.stdout.write(`\x1b]99;i=1:p=body:d=1;${cleanBody}\x1b\\`);
+		} else if (process.env.WT_SESSION) {
+			// Windows Terminal / WSL (OSC 9)
 			process.stdout.write(`\x1b]9;${cleanTitle}: ${cleanBody}\x07`);
+		} else {
+			// Standard Linux/Wayland terminals (Ghostty, Foot, WezTerm, VTE, rxvt): OSC 777
+			process.stdout.write(`\x1b]777;notify;${cleanTitle};${cleanBody}\x07`);
 		}
 	} catch {
 		// Ignore any stream writing errors
@@ -57,7 +52,9 @@ export function sendTerminalNotification(title: string, body: string): void {
 export function sendDesktopNotification(payload: NotificationPayload): void {
 	const icon = resolveIcon(payload.iconPath);
 	const urgency = payload.urgency || "normal";
-	const timeout = payload.expireTimeoutMs ?? 6000;
+	const timeout = typeof payload.expireTimeoutMs === "number" && payload.expireTimeoutMs >= 0
+		? payload.expireTimeoutMs
+		: 6000;
 	const category = payload.category || "job.complete";
 	const appName = "Pi Coding Agent";
 
@@ -94,7 +91,7 @@ export function sendDesktopNotification(payload: NotificationPayload): void {
 	}
 }
 
-function sendGdbusNotification(
+export function sendGdbusNotification(
 	appName: string,
 	icon: string,
 	title: string,
@@ -142,7 +139,7 @@ export function notifyUser(payload: NotificationPayload, config: NotificationCon
 	if (config.desktopNotification) {
 		sendDesktopNotification({
 			...payload,
-			iconPath: config.icon || payload.iconPath,
+			iconPath: payload.iconPath || config.icon,
 			urgency: payload.urgency || config.urgency,
 			expireTimeoutMs: payload.expireTimeoutMs ?? config.expireTimeoutMs,
 		});

@@ -2,15 +2,15 @@ import path from "node:path";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	getGlobalConfigFile,
+	getProjectConfigFile,
 	loadConfig,
 	saveGlobalConfig,
 } from "./config.ts";
 import {
 	buildNotificationContent,
 	extractAssistantSummary,
-	formatDuration,
 } from "./formatter.ts";
-import { notifyUser, sendDesktopNotification } from "./notifier.ts";
+import { notifyUser } from "./notifier.ts";
 import type { NotificationConfig, RunMetrics } from "./types.ts";
 
 export default function (pi: ExtensionAPI) {
@@ -20,17 +20,14 @@ export default function (pi: ExtensionAPI) {
 		pi.registerFlag("notify", {
 			description: "Enable desktop notification when job is finished",
 			type: "boolean",
-			default: true,
 		});
 		pi.registerFlag("notify-sound", {
 			description: "Play sound with job completion notification",
 			type: "boolean",
-			default: true,
 		});
 		pi.registerFlag("notify-threshold", {
-			description: "Minimum job duration in seconds to trigger notification (default: 5)",
+			description: "Minimum job duration in seconds to trigger notification",
 			type: "string",
-			default: "5",
 		});
 	} catch {
 		// Ignore if flags are already registered or not supported
@@ -104,7 +101,6 @@ export default function (pi: ExtensionAPI) {
 					title: content.title,
 					body: content.body,
 					urgency: "low",
-					sound: config.sound,
 					soundEvent: "warning",
 				},
 				config,
@@ -147,7 +143,6 @@ export default function (pi: ExtensionAPI) {
 				title: content.title,
 				body: content.body,
 				urgency: config.urgency,
-				sound: config.sound,
 				soundEvent: config.soundEvent,
 			},
 			config,
@@ -163,7 +158,7 @@ export default function (pi: ExtensionAPI) {
 	});
 }
 
-function getEffectiveConfig(pi: ExtensionAPI, cwd?: string): NotificationConfig {
+export function getEffectiveConfig(pi: ExtensionAPI, cwd?: string): NotificationConfig {
 	const config = loadConfig(cwd);
 
 	try {
@@ -178,7 +173,7 @@ function getEffectiveConfig(pi: ExtensionAPI, cwd?: string): NotificationConfig 
 		}
 
 		const flagThreshold = pi.getFlag("notify-threshold");
-		if (typeof flagThreshold === "string") {
+		if (typeof flagThreshold === "string" && flagThreshold.trim().length > 0) {
 			const parsed = Number.parseFloat(flagThreshold);
 			if (!Number.isNaN(parsed) && parsed >= 0) {
 				config.minDurationSeconds = parsed;
@@ -191,7 +186,19 @@ function getEffectiveConfig(pi: ExtensionAPI, cwd?: string): NotificationConfig 
 	return config;
 }
 
-async function handleNotifyCommand(args: string, ctx: ExtensionCommandContext): Promise<void> {
+function showMessage(
+	ctx: ExtensionCommandContext,
+	msg: string,
+	type: "info" | "warning" | "error" = "info",
+): void {
+	if (ctx.hasUI) {
+		ctx.ui.notify(msg, type);
+	} else {
+		console.log(msg);
+	}
+}
+
+export async function handleNotifyCommand(args: string, ctx: ExtensionCommandContext): Promise<void> {
 	const parts = args.split(/\s+/).filter(Boolean);
 	const sub = parts[0]?.toLowerCase();
 
@@ -202,36 +209,31 @@ async function handleNotifyCommand(args: string, ctx: ExtensionCommandContext): 
 				title: "Pi Agent • Test Notification",
 				body: '✓ Notifications are working!\n\n"Wayland desktop notification & audio chime test."',
 				urgency: "normal",
-				sound: config.sound,
 				soundEvent: config.soundEvent,
 			},
 			{ ...config, enabled: true },
 		);
 
-		if (ctx.hasUI) {
-			ctx.ui.notify("Test notification sent! Check your desktop notifications.", "info");
-		}
+		showMessage(ctx, "Test notification sent! Check your desktop notifications.", "info");
 		return;
 	}
 
 	if (sub === "on" || sub === "enable") {
 		saveGlobalConfig({ enabled: true });
-		if (ctx.hasUI) ctx.ui.notify("Notifications enabled.", "info");
+		showMessage(ctx, "Notifications enabled.", "info");
 		return;
 	}
 
 	if (sub === "off" || sub === "disable") {
 		saveGlobalConfig({ enabled: false });
-		if (ctx.hasUI) ctx.ui.notify("Notifications disabled.", "info");
+		showMessage(ctx, "Notifications disabled.", "info");
 		return;
 	}
 
 	if (sub === "toggle") {
 		const current = loadConfig(ctx.cwd);
 		const updated = saveGlobalConfig({ enabled: !current.enabled });
-		if (ctx.hasUI) {
-			ctx.ui.notify(`Notifications ${updated.enabled ? "enabled" : "disabled"}.`, "info");
-		}
+		showMessage(ctx, `Notifications ${updated.enabled ? "enabled" : "disabled"}.`, "info");
 		return;
 	}
 
@@ -239,35 +241,32 @@ async function handleNotifyCommand(args: string, ctx: ExtensionCommandContext): 
 		const val = parts[1]?.toLowerCase();
 		if (val === "on") {
 			saveGlobalConfig({ sound: true });
-			if (ctx.hasUI) ctx.ui.notify("Notification sound enabled.", "info");
+			showMessage(ctx, "Notification sound enabled.", "info");
 			return;
 		}
 		if (val === "off") {
 			saveGlobalConfig({ sound: false });
-			if (ctx.hasUI) ctx.ui.notify("Notification sound disabled.", "info");
+			showMessage(ctx, "Notification sound disabled.", "info");
 			return;
 		}
 		const current = loadConfig(ctx.cwd);
 		const updated = saveGlobalConfig({ sound: !current.sound });
-		if (ctx.hasUI) {
-			ctx.ui.notify(`Notification sound ${updated.sound ? "enabled" : "disabled"}.`, "info");
-		}
+		showMessage(ctx, `Notification sound ${updated.sound ? "enabled" : "disabled"}.`, "info");
 		return;
 	}
 
 	if (sub === "threshold" || sub === "min") {
 		const sec = Number.parseFloat(parts[1] || "");
 		if (Number.isNaN(sec) || sec < 0) {
-			if (ctx.hasUI) ctx.ui.notify("Usage: /notify threshold <seconds> (e.g. /notify threshold 5)", "warning");
+			showMessage(ctx, "Usage: /notify threshold <seconds> (e.g. /notify threshold 5)", "warning");
 			return;
 		}
 		saveGlobalConfig({ minDurationSeconds: sec });
-		if (ctx.hasUI) {
-			ctx.ui.notify(
-				`Notification threshold set to ${sec}s (${sec === 0 ? "notify on every run" : `notify if run >= ${sec}s`}).`,
-				"info",
-			);
-		}
+		showMessage(
+			ctx,
+			`Notification threshold set to ${sec}s (${sec === 0 ? "notify on every run" : `notify if run >= ${sec}s`}).`,
+			"info",
+		);
 		return;
 	}
 
@@ -275,35 +274,32 @@ async function handleNotifyCommand(args: string, ctx: ExtensionCommandContext): 
 		const val = parts[1]?.toLowerCase();
 		if (val === "on") {
 			saveGlobalConfig({ includeSummary: true });
-			if (ctx.hasUI) ctx.ui.notify("Assistant summary excerpt enabled.", "info");
+			showMessage(ctx, "Assistant summary excerpt enabled.", "info");
 			return;
 		}
 		if (val === "off") {
 			saveGlobalConfig({ includeSummary: false });
-			if (ctx.hasUI) ctx.ui.notify("Assistant summary excerpt disabled.", "info");
+			showMessage(ctx, "Assistant summary excerpt disabled.", "info");
 			return;
 		}
 		const current = loadConfig(ctx.cwd);
 		const updated = saveGlobalConfig({ includeSummary: !current.includeSummary });
-		if (ctx.hasUI) {
-			ctx.ui.notify(`Assistant summary ${updated.includeSummary ? "enabled" : "disabled"}.`, "info");
-		}
+		showMessage(ctx, `Assistant summary ${updated.includeSummary ? "enabled" : "disabled"}.`, "info");
 		return;
 	}
 
 	if (sub === "help") {
 		const helpText = [
 			"Available /notify commands:",
-			"  /notify            Show current notification status",
-			"  /notify test       Send an immediate test notification & chime",
-			"  /notify toggle     Toggle notifications on/off",
-			"  /notify sound on|off  Enable or disable sound chime",
+			"  /notify                Show current notification status",
+			"  /notify test           Send an immediate test notification & chime",
+			"  /notify toggle         Toggle notifications on/off",
+			"  /notify on|off         Enable or disable notifications",
+			"  /notify sound on|off   Enable or disable sound chime",
 			"  /notify threshold <sec> Set minimum task duration to trigger notification (e.g. 5)",
-			"  /notify summary on|off  Include assistant response excerpt in notification",
+			"  /notify summary on|off Include assistant response excerpt in notification",
 		].join("\n");
-		if (ctx.hasUI) {
-			ctx.ui.notify(helpText, "info");
-		}
+		showMessage(ctx, helpText, "info");
 		return;
 	}
 
@@ -317,10 +313,14 @@ async function handleNotifyCommand(args: string, ctx: ExtensionCommandContext): 
 		`• Terminal OSC:    ${config.terminalNotification ? "Enabled" : "Disabled"}`,
 		`• Response Snippet: ${config.includeSummary ? "Enabled" : "Disabled"}`,
 		`• Config Path:     ${getGlobalConfigFile()}`,
-		`Type '/notify help' or '/notify test' for more.`,
-	].join("\n");
+	];
 
-	if (ctx.hasUI) {
-		ctx.ui.notify(statusLines, "info");
+	const projectConfig = getProjectConfigFile(ctx.cwd);
+	if (projectConfig) {
+		statusLines.push(`• Project Override: ${projectConfig}`);
 	}
+
+	statusLines.push("Type '/notify help' or '/notify test' for more.");
+
+	showMessage(ctx, statusLines.join("\n"), "info");
 }

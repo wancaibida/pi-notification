@@ -48,6 +48,7 @@ While inside Pi interactive session, use the `/notify` slash command:
 |---|---|
 | `/notify` | Display current notification settings and configuration path |
 | `/notify test` | Fire an immediate test desktop notification and audio chime |
+| `/notify on\|off` | Explicitly enable or disable notifications |
 | `/notify toggle` | Toggle notifications on/off |
 | `/notify sound on\|off` | Enable or disable the audio completion chime |
 | `/notify threshold <sec>` | Set the minimum run duration before notifying (e.g. `0` for always) |

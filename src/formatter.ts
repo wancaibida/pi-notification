@@ -20,33 +20,33 @@ export function cleanMarkdownText(text: string): string {
 	if (!text) return "";
 
 	return text
-		// Remove code blocks
-		.replace(/```[\s\S]*?```/g, (match) => {
-			const lines = match.split("\n").slice(1, -1);
-			return lines.length > 0 ? lines[0] : "";
-		})
-		// Remove inline code
+		// Remove fenced code blocks
+		.replace(/```[\s\S]*?```/g, "")
+		// Remove inline code (preserve the code text)
 		.replace(/`([^`]+)`/g, "$1")
+		// Remove images before links
+		.replace(/!\[([^\]]*)\]\([^)]+\)/g, "")
 		// Remove markdown links [text](url) -> text
 		.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-		// Remove markdown images
-		.replace(/!\[([^\]]*)\]\([^)]+\)/g, "")
-		// Remove bold and italics
-		.replace(/(\*\*|__)(.*?)\1/g, "$2")
-		.replace(/(\*|_)(.*?)\1/g, "$2")
+		// Remove bold (**text** or __text__) at non-word boundaries
+		.replace(/(?<=^|[^\w])(\*\*|__)(?!\s)([^\n]+?)(?<!\s)\1(?=[^\w]|$)/g, "$2")
+		// Remove italics (*text* or _text_) at non-word boundaries
+		.replace(/(?<=^|[^\w])(\*|_)(?!\s)([^\n*]+?)(?<!\s)\1(?=[^\w]|$)/g, "$2")
 		// Remove headers # Title
 		.replace(/^#{1,6}\s+/gm, "")
 		// Remove blockquotes
 		.replace(/^>\s+/gm, "")
-		// Remove HTML tags
-		.replace(/<[^>]*>/g, "")
+		// Remove HTML tags (valid tag names)
+		.replace(/<\/?[a-zA-Z][a-zA-Z0-9:-]*(?:\s+[^>]*?)?\/?>/g, "")
 		// Collapse multiple whitespaces/newlines
 		.replace(/\s+/g, " ")
 		.trim();
 }
 
 export function truncateText(text: string, maxLength: number): string {
+	if (maxLength <= 0) return "";
 	if (text.length <= maxLength) return text;
+	if (maxLength <= 3) return text.slice(0, maxLength);
 	return text.slice(0, maxLength - 3).trimEnd() + "...";
 }
 
@@ -61,28 +61,30 @@ export function extractAssistantSummary(
 		const entry = branchEntries[i];
 		if (!entry) continue;
 
-		// SessionMessageEntry
-		const msg = entry.message || (entry.type === "message" ? entry.message : null);
-		if (msg && msg.role === "assistant" && msg.content) {
-			let rawText = "";
+		// Check for SessionMessageEntry
+		if (entry.type === "message" && entry.message) {
+			const msg = entry.message;
+			if (msg.role === "assistant" && msg.content) {
+				let rawText = "";
 
-			if (typeof msg.content === "string") {
-				rawText = msg.content;
-			} else if (Array.isArray(msg.content)) {
-				const parts: string[] = [];
-				for (const part of msg.content) {
-					if (part && typeof part === "object") {
-						if (part.type === "text" && typeof part.text === "string") {
-							parts.push(part.text);
+				if (typeof msg.content === "string") {
+					rawText = msg.content;
+				} else if (Array.isArray(msg.content)) {
+					const parts: string[] = [];
+					for (const part of msg.content) {
+						if (part && typeof part === "object") {
+							if (part.type === "text" && typeof part.text === "string") {
+								parts.push(part.text);
+							}
 						}
 					}
+					rawText = parts.join(" ");
 				}
-				rawText = parts.join(" ");
-			}
 
-			const cleaned = cleanMarkdownText(rawText);
-			if (cleaned.length > 0) {
-				return truncateText(cleaned, maxLength);
+				const cleaned = cleanMarkdownText(rawText);
+				if (cleaned.length > 0) {
+					return truncateText(cleaned, maxLength);
+				}
 			}
 		}
 	}

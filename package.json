@@ -12,6 +12,9 @@
     "linux",
     "desktop-notification"
   ],
+  "engines": {
+    "node": ">=22.6.0"
+  },
   "pi": {
     "extensions": [
       "./src/index.ts"

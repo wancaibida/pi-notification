@@ -29,6 +29,7 @@ Here is what was done:
 
 \`\`\`typescript
 const x = 10;
+console.log(x);
 \`\`\`
 	`;
 
@@ -37,13 +38,35 @@ const x = 10;
 	assert.ok(!cleaned.includes("`"));
 	assert.ok(!cleaned.includes("**"));
 	assert.ok(!cleaned.includes("[documentation]"));
+	assert.ok(!cleaned.includes("const x = 10;"));
 	assert.ok(cleaned.includes("Fixed src/notifier.ts and improved error handling."));
 	assert.ok(cleaned.includes("See documentation for details."));
 });
 
-test("truncateText truncates cleanly with ellipsis", () => {
+test("cleanMarkdownText handles edge cases: snake_case, multiplication, images, HTML", () => {
+	// Images should be removed without leaving '!alt'
+	const withImage = "Here is the icon: ![Pi Logo](assets/pi.svg) and [Docs](https://example.com).";
+	assert.equal(cleanMarkdownText(withImage), "Here is the icon: and Docs.");
+
+	// Underscores in identifiers must not be removed
+	const snakeCase = "Modified my_variable_name and config_dir in source.";
+	assert.equal(cleanMarkdownText(snakeCase), "Modified my_variable_name and config_dir in source.");
+
+	// Multiplication asterisks must not be stripped
+	const math = "Result is 2 * 3 * 4 = 24 items.";
+	assert.equal(cleanMarkdownText(math), "Result is 2 * 3 * 4 = 24 items.");
+
+	// Inequalities must not be stripped as HTML tags
+	const inequalities = "Check if count < 10 and max > 5 is true. <span>Keep clean</span>";
+	assert.equal(cleanMarkdownText(inequalities), "Check if count < 10 and max > 5 is true. Keep clean");
+});
+
+test("truncateText truncates cleanly with ellipsis and handles short limits", () => {
 	assert.equal(truncateText("Hello world", 20), "Hello world");
 	assert.equal(truncateText("Hello world, this is a very long text", 15), "Hello world,...");
+	assert.equal(truncateText("Hello", 0), "");
+	assert.equal(truncateText("Hello", 2), "He");
+	assert.equal(truncateText("Hello", 3), "Hel");
 });
 
 test("extractAssistantSummary extracts and trims assistant text", () => {
@@ -54,6 +77,11 @@ test("extractAssistantSummary extracts and trims assistant text", () => {
 				role: "user",
 				content: "Please fix the notification bug",
 			},
+		},
+		{
+			type: "custom",
+			customType: "something_else",
+			data: {},
 		},
 		{
 			type: "message",
